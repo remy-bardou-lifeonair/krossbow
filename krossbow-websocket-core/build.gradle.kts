@@ -2,9 +2,18 @@ import java.net.URL
 
 plugins {
     kotlin("multiplatform")
+    id("com.android.library")
+}
+
+repositories {
+    google()
 }
 
 description = "WebSocket client API used by the Krossbow STOMP client, with default JS and JVM implementations."
+
+android {
+    compileSdkVersion = "28"
+}
 
 kotlin {
     jvm()
@@ -13,6 +22,7 @@ kotlin {
         nodejs()
         browser()
     }
+    android()
     sourceSets {
         val commonMain by getting {
             dependencies {
@@ -41,6 +51,9 @@ kotlin {
                 implementation(kotlin("test-junit"))
                 implementation("com.pusher:java-websocket:1.4.1")
             }
+        }
+        val androidMain by getting {
+            dependsOn(jvmMain)
         }
         val jsMain by getting {
             dependencies {

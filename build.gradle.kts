@@ -2,6 +2,15 @@ import com.jfrog.bintray.gradle.BintrayExtension
 import com.jfrog.bintray.gradle.BintrayExtension.*
 import org.hildan.github.changelog.generator.DEFAULT_EXCLUDED_LABELS
 
+buildscript {
+    repositories {
+        google()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:3.6.0")
+    }
+}
+
 plugins {
     val kotlinVersion = "1.3.72"
     kotlin("jvm") version kotlinVersion apply false
