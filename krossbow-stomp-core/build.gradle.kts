@@ -6,7 +6,7 @@ description = "A Kotlin multiplatform STOMP client with JVM, Browser, and NodeJS
 
 kotlin {
     jvm()
-    js {
+    js(BOTH) {
         nodejs {
             testTask {
                 useMocha {

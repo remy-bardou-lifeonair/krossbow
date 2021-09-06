@@ -6,7 +6,7 @@ description = "Multiplatform implementation of Krossbow's WebSocket API using Kt
 
 kotlin {
     jvm()
-    js {
+    js(BOTH) {
         useCommonJs() // required for SockJS top-level declarations usage
         nodejs {
             testTask {

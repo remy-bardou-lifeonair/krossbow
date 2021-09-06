@@ -6,7 +6,7 @@ description = "WebSocket client API used by the Krossbow STOMP client, with defa
 
 kotlin {
     jvm()
-    js {
+    js(BOTH) {
         useCommonJs()
         nodejs {
             testTask {
