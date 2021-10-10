@@ -17,11 +17,28 @@ import platform.posix.memcpy
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.random.Random
 
 /**
  * Error code received in some callbacks when the connection is actually just closed normally.
  */
 private const val ERROR_CODE_SOCKET_NOT_CONNECTED = 57
+
+private fun NSURLSessionWebSocketTask.debugInfo(): String = "hash=$hash url=${originalRequest?.URL}"
+
+private fun NSURLSessionTask.debugInfo(): String = "hash=$hash url=${originalRequest?.URL}"
+
+private fun trace(method: String, webSocketTask: NSURLSessionWebSocketTask, vararg data: Pair<String, Any?>) {
+    val info = data.joinToString(separator = "") { (k, v) -> "\n    $k=$v" }
+    println("$method: ${webSocketTask.debugInfo()}$info")
+}
+
+private fun trace(method: String, session: NSURLSessionTask, vararg data: Pair<String, Any?>) {
+    val info = data.joinToString(separator = "") { (k, v) -> "\n    $k=$v" }
+    println("$method: ${session.debugInfo()}$info")
+}
+
+private fun subTrace(message: String) = "    => $message"
 
 /**
  * An implementation of [WebSocketClient] using iOS's native [NSURLSessionWebSocketTask].
@@ -66,12 +83,15 @@ private class IosWebSocketListener(
     private inline fun completeConnection(resume: Continuation<IosWebSocketConnection>.() -> Unit) {
         val cont = connectionContinuation ?: error("web socket connection continuation already consumed")
         connectionContinuation = null // avoid leaking the continuation
+        subTrace("setting isConnecting=false")
         isConnecting = false
         cont.resume()
     }
 
     override fun URLSession(session: NSURLSession, webSocketTask: NSURLSessionWebSocketTask, didOpenWithProtocol: String?) {
+        trace("onOpen", webSocketTask, "url" to url, "protocol" to didOpenWithProtocol)
         completeConnection {
+            subTrace("about to resume")
             resume(IosWebSocketConnection(url, incomingFrames.receiveAsFlow(), webSocketTask))
         }
     }
@@ -82,6 +102,7 @@ private class IosWebSocketListener(
         didCloseWithCode: NSURLSessionWebSocketCloseCode,
         reason: NSData?
     ) {
+        trace("onClose", webSocketTask, "url" to url, "code" to didCloseWithCode, "reason" to reason?.decodeToString())
         passCloseFrameThroughChannel(didCloseWithCode.toInt(), reason?.decodeToString())
     }
 
@@ -90,7 +111,9 @@ private class IosWebSocketListener(
         task: NSURLSessionTask,
         didCompleteWithError: NSError?
     ) {
+        trace("onError", task, "url" to url, "error" to didCompleteWithError)
         if (isConnecting) {
+            subTrace("isConnecting - resuming with exception (isConnecting is now $isConnecting)")
             val ex = WebSocketConnectionException(url, cause = didCompleteWithError?.toIosWebSocketException())
             completeConnection {
                 resumeWithException(ex)
@@ -100,6 +123,7 @@ private class IosWebSocketListener(
 
         // The error is null in case of server-side errors
         if (didCompleteWithError == null) {
+            subTrace("closing with exception")
             incomingFrames.close(WebSocketException("NSURLSession failed with unknown server-side error"))
             return
         }
@@ -113,16 +137,25 @@ private class IosWebSocketListener(
             return
         }
 
+        subTrace("closing with exception")
         incomingFrames.close(didCompleteWithError.toIosWebSocketException())
     }
 
     private fun passCloseFrameThroughChannel(code: Int, reason: String?) {
+        subTrace("Passing CLOSE frame through channel (code=$code, reason=$reason)...")
         val closeResult = incomingFrames.trySend(WebSocketFrame.Close(code, reason))
         if (closeResult.isFailure) {
             val closeException = WebSocketException("Could not pass CLOSE frame through channel", cause = closeResult.exceptionOrNull())
+            subTrace("!!! Could not pass CLOSE frame through channel - closing with exception: ${closeResult
+                .exceptionOrNull()}")
             incomingFrames.close(closeException)
             // still throw because no one might be listening to this channel (especially since the buffer is likely full)
             throw closeException
+        }
+        if (closeResult.isClosed) {
+            subTrace("!!! Could not pass CLOSE frame through channel: already closed")
+        } else {
+            subTrace("CLOSE successful - closing channel normally")
         }
         incomingFrames.close()
     }
@@ -176,7 +209,10 @@ private class IosWebSocketConnection(
  * There is currently no way to register a callback for all new messages - only to listen to one single "next" message.
  */
 private fun NSURLSessionWebSocketTask.forwardNextIncomingMessagesAsyncTo(incomingFrames: SendChannel<WebSocketFrame>) {
+    val rand = Random.nextInt(999)
+    trace("receiveMessage $rand", this)
     receiveMessageWithCompletionHandler { message, nsError ->
+        trace("onMessage $rand", this, "message" to message, "error" to nsError)
         when {
             nsError != null -> {
                 // We sometimes get this error: Domain=NSPOSIXErrorDomain Code=57 "Socket is not connected"
@@ -192,18 +228,22 @@ private fun NSURLSessionWebSocketTask.forwardNextIncomingMessagesAsyncTo(incomin
                     }
                     return@receiveMessageWithCompletionHandler
                 }
+                subTrace("closing with exception")
                 incomingFrames.close(nsError.toIosWebSocketException())
                 // No recursive call here, so we stop listening to messages in a closed or failed web socket
             }
             message != null -> {
+                subTrace("sending message through channel: $message")
                 val result = incomingFrames.trySend(message.toWebSocketFrame())
                 if (result.isFailure) {
                     val closeException = WebSocketException("Could not pass message frame through channel", cause = result.exceptionOrNull())
+                    subTrace("could not pass message frame through channel - closing with exception: ${result.exceptionOrNull()}")
                     incomingFrames.close(closeException)
                     // still throw because no one might be listening to this channel (especially since the buffer is likely full)
                     throw closeException
                 }
                 if (result.isClosed) {
+                    subTrace("could not pass message frame through channel: already closed")
                     // TODO should we throw here instead? In which cases exactly this can happen?
                     // if the channel is already closed, maybe it is just a race with the closing handshake
                     // and we can simply ignore the extra message
