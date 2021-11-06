@@ -5,6 +5,12 @@ import org.hildan.krossbow.stomp.charsets.Charsets
 import org.hildan.krossbow.stomp.headers.*
 import org.hildan.krossbow.stomp.charsets.extractCharset
 
+sealed class StompEvent {
+    internal object HeartBeat : StompEvent()
+    internal object Close : StompEvent()
+    internal data class Error(val cause: Throwable) : StompEvent()
+}
+
 /**
  * Represents a STOMP frame. The structure of STOMP frames is
  * [defined by the specification](https://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames).
@@ -16,7 +22,7 @@ sealed class StompFrame(
     open val headers: StompHeaders,
     /** The body of this STOMP frame. */
     open val body: FrameBody? = null,
-) {
+) : StompEvent() {
     /**
      * The body of this frame as text.
      *
