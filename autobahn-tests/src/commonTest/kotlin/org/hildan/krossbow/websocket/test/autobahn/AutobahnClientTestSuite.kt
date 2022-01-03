@@ -198,6 +198,8 @@ abstract class AutobahnClientTestSuite(
     fun autobahn_5_9_echo_payload() = runAutobahnTestCase("5.9")
 
     private fun runAutobahnTestCase(caseId: String) = runSuspendingTest {
+        println("TEST - $agentUnderTest - $caseId - START")
+
         val matchedExclusion = exclusions.find { it.excludes(caseId) }
         if (matchedExclusion != null) {
             println("Test case $caseId disabled for agent $agentUnderTest: ${matchedExclusion.reason}")
@@ -212,6 +214,8 @@ abstract class AutobahnClientTestSuite(
             autobahnClientTester.runTestCase(case)
         }
         autobahnClientTester.assertTestCaseResult(case)
+
+        println("TEST - $agentUnderTest - $caseId - END")
     }
 
     private suspend fun AutobahnClientTester.assertTestCaseResult(case: AutobahnCase) {
