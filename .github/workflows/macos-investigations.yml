@@ -1,21 +1,16 @@
-name: CI Build
+name: macOS investigations
 
 on:
   push:
-    paths-ignore:
-      - 'mkdocs.yml'
-      - 'docs/**'
-    branches-ignore:
+    branches:
       - macos-investigations/*
-  pull_request:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  macos-tests:
+    timeout-minutes: 30
+    runs-on: macos-latest
     strategy:
       matrix:
-        # Windows hosts don't support linux containers yet (https://github.com/actions/virtual-environments/issues/1143)
-        os: [ ubuntu-latest, macos-latest ]
         jdk-version: [ 17 ]
     steps:
       - name: Checkout repository
@@ -30,14 +25,13 @@ jobs:
       # Docker is not installed on GitHub's MacOS hosted workers due to licensing issues
       # (and it's necessary to run Autobahn tests)
       - name: Install docker and docker-compose (missing on MacOS)
-        if: matrix.os == 'macos-latest'
         uses: ./.github/actions/setup-docker-macos
 
       - name: Build with Gradle
         uses: burrunan/gradle-cache-action@v1
         with:
-          job-id: jdk${{ matrix.jdk-version }}
-          arguments: build
+          job-id: jdk${{ matrix.jdk-version }}-macos-investigations
+          arguments: allTests
 
       - name: Upload Autobahn reports
         uses: actions/upload-artifact@v2
