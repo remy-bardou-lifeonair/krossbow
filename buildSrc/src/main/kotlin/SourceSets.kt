@@ -14,8 +14,9 @@ fun KotlinMultiplatformExtension.setupNativeTargets() {
     watchosArm64()
     watchosX86()
 
-    // Desktop not supported yet
-    // macosX64()
+    macosX64()
+
+    // Not supported yet
     // linuxX64()
     // mingwX64()
 }
@@ -68,6 +69,13 @@ fun NamedDomainObjectContainer<KotlinSourceSet>.setupNativeSourceSets() {
         dependsOn(nativeDarwinMain)
     }
     val tvosTest by getting {
+        dependsOn(nativeDarwinTest)
+    }
+
+    val macosX64Main by getting {
+        dependsOn(nativeDarwinMain)
+    }
+    val macosX64Test by getting {
         dependsOn(nativeDarwinTest)
     }
 }
