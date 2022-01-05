@@ -2,6 +2,8 @@ package org.hildan.krossbow.websocket.test.autobahn
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.hildan.krossbow.websocket.*
 import org.hildan.krossbow.websocket.test.runSuspendingTest
 import kotlin.test.*
@@ -197,25 +199,29 @@ abstract class AutobahnClientTestSuite(
     @Test
     fun autobahn_5_9_echo_payload() = runAutobahnTestCase("5.9")
 
+    private val mutex = Mutex()
+
     private fun runAutobahnTestCase(caseId: String) = runSuspendingTest {
-        println("TEST - $agentUnderTest - $caseId - START")
+        mutex.withLock {
+            println("TEST - $agentUnderTest - $caseId - START")
 
-        val matchedExclusion = exclusions.find { it.excludes(caseId) }
-        if (matchedExclusion != null) {
-            println("Test case $caseId disabled for agent $agentUnderTest: ${matchedExclusion.reason}")
-            return@runSuspendingTest
+            val matchedExclusion = exclusions.find { it.excludes(caseId) }
+            if (matchedExclusion != null) {
+                println("Test case $caseId disabled for agent $agentUnderTest: ${matchedExclusion.reason}")
+                return@runSuspendingTest
+            }
+            val autobahnClientTester = AutobahnClientTester(provideClient(), config, agentUnderTest)
+            val case = AutobahnCase.fromTuple(caseId)
+
+            // It would be best to update reports only after all tests of the class, but it's not possible at the moment.
+            // In the meantime, we only write reports in case of error because updateReports itself fails sometimes.
+            autobahnClientTester.withReportsOnError {
+                autobahnClientTester.runTestCase(case)
+            }
+            autobahnClientTester.assertTestCaseResult(case)
+
+            println("TEST - $agentUnderTest - $caseId - END")
         }
-        val autobahnClientTester = AutobahnClientTester(provideClient(), config, agentUnderTest)
-        val case = AutobahnCase.fromTuple(caseId)
-
-        // It would be best to update reports only after all tests of the class, but it's not possible at the moment.
-        // In the meantime, we only write reports in case of error because updateReports itself fails sometimes.
-        autobahnClientTester.withReportsOnError {
-            autobahnClientTester.runTestCase(case)
-        }
-        autobahnClientTester.assertTestCaseResult(case)
-
-        println("TEST - $agentUnderTest - $caseId - END")
     }
 
     private suspend fun AutobahnClientTester.assertTestCaseResult(case: AutobahnCase) {
