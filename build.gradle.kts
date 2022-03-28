@@ -68,7 +68,6 @@ subprojects {
 
     if (project.name != "autobahn-tests") {
         apply(plugin = "maven-publish")
-        apply(plugin = "signing")
 
         val dokkaJar by tasks.creating(Jar::class) {
             archiveClassifier.set("javadoc")
@@ -81,12 +80,6 @@ subprojects {
                 pub.configurePomForMavenCentral(project)
             }
 
-            signing {
-                val signingKey: String? by project
-                val signingPassword: String? by project
-                useInMemoryPgpKeys(signingKey, signingPassword)
-                sign(publishing.publications)
-            }
 
             tasks["assemble"].dependsOn(tasks["dokkaHtml"])
         }
